@@ -10,7 +10,6 @@ from optimizations import ReplayBuffer
 SAVE_PATH = os.path.join(os.getcwd(), 'cycle_gan_models')
 os.makedirs(SAVE_PATH, exist_ok=True)
 
-
 class ResidualBlock(nn.Module):
     """Residual Block with instance normalization."""
     def __init__(self, features):
@@ -108,7 +107,10 @@ class CycleGAN:
         self.D_B = Discriminator().to(self.device)
         
         # use an amp scaler
-        self.scaler = torch.amp.GradScaler('cuda' if torch.cuda.is_available())
+        if device == torch.device('cuda'):
+            self.scaler = torch.amp.GradScaler('cuda')
+        else:
+            self.scaler = torch.amp.GradScaler()
         
         # Loss functions
         self.criterion_GAN = nn.MSELoss()
