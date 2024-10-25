@@ -4,7 +4,31 @@ from torch.utils.data import Dataset
 
 
 class ImageDataset(Dataset):
-    """Custom dataset for loading images from directories."""
+    """
+    Custom dataset class for loading and processing unpaired image sets for CycleGAN training.
+
+    This dataset is designed for the CycleGAN architecture, which performs unpaired
+    image-to-image translation between two domains (A and B). It expects a directory
+    structure where images from each domain are stored in separate folders.
+
+    The directory structure should be like this:
+        root/
+        |-- trainA/ # Images from domain A for training (real images)
+        |-- trainB/ # Images from domain B for training (cartoon images)
+        |-- testA/ # Images from domain A for testing (real images)
+        └── testB/ # Images from domain B for testing (cartoon images)
+
+    Args:
+        root (str): Root directory containing the image folders
+        transform (callable, optional): Optional transform to be applied to the images. Defaults to None.
+        mode (str, optional): Dataset mode, either 'train' or 'test'. Determines which folder to use.
+
+    Returns:
+        image_dict (dict): A dictionary containing:
+            - 'A': Transformed image from domain A (PIL Image or tensor if transform is applied)
+            - 'B': Transformed image from domain B (PIL Image or tensor if transform is applied)
+
+    """
 
     def __init__(self, root, transform=None, mode="train"):
         self.transform = transform
@@ -31,4 +55,5 @@ class ImageDataset(Dataset):
             img_A = self.transform(img_A)
             img_B = self.transform(img_B)
 
-        return {"A": img_A, "B": img_B}
+        image_dict = {"A": img_A, "B": img_B}
+        return image_dict

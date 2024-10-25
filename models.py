@@ -12,7 +12,16 @@ os.makedirs(SAVE_PATH, exist_ok=True)
 
 
 class ResidualBlock(nn.Module):
-    """Residual Block with instance normalization."""
+    """
+    Residual Block with instance normalization.
+
+    Architecture:
+        x → Conv → InstanceNorm → ReLU → Conv → InstanceNorm → Add → Output
+        ↳________________________________________________↗
+
+    Args:
+        features (int): Number of input/output channels for the block
+    """
 
     def __init__(self, features):
         super().__init__()
@@ -29,7 +38,29 @@ class ResidualBlock(nn.Module):
 
 
 class Generator(nn.Module):
-    """Generator using pretrained ResNet50 as encoder."""
+    """
+    Generator using pretrained ResNet50 as encoder.
+
+    Architecture:
+        - Encoder: Modified ResNet50 (pretrained)
+        - Residual Blocks: For maintaining spatial information
+        - Decoder: Transposed convolutions for upsampling
+
+    Features:
+        - Utilizes transfer learning with frozen early layers
+        - Instance normalization for style transfer
+        - Skip connections in residual blocks
+
+    Args:
+        input_channels (int): Number of input image channels (default: 3 for RGB)
+        output_channels (int): Number of output image channels (default: 3 for RGB)
+
+    Notes:
+        - The encoder uses pretrained ResNet50 up to Layer3
+        - Early layers are frozen for faster training and better stability
+        - The decoder upsamples through 4 stages back to original resolution
+
+    """
 
     def __init__(self, input_channels=3, output_channels=3):
         super().__init__()
@@ -69,7 +100,25 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    """Memory-efficient PatchGAN discriminator using MobileNetV2 features."""
+    """
+    Memory-efficient PatchGAN discriminator based on MobileNetV2 architecture.
+
+    Architecture:
+        - Feature Extraction: Modified MobileNetV2 (pretrained)
+        - Transition Layers: Conv blocks for channel adjustment
+        - Classifier: Final convolution for patch-level classification
+
+    Features:
+        - Efficient design using depthwise separable convolutions
+        - Frozen early layers for stability
+        - PatchGAN output for realistic texture matching
+
+    Args:
+        input_channels (int): Number of input image channels (default: 3 for RGB)
+
+    Returns:
+        classification (torch.Tensor): Patch-level predictions of real/fake classification
+    """
 
     def __init__(self, input_channels=3):
         super().__init__()
@@ -101,11 +150,49 @@ class Discriminator(nn.Module):
     def forward(self, x):
         features = self.features(x)
         features = self.transition(features)
-        return self.classifier(features)
+        classification = self.classifier(features)
+        return classification
 
 
 class CycleGAN:
-    """Optimized CycleGAN implementation."""
+    """
+    Optimized CycleGAN implementation.
+
+    This class implements the CycleGAN model with several optimizations:
+        - Mixed precision training with automatic mixed precision (AMP)
+        - Gradient clipping for stability
+        - Learning rate scheduling with warm restarts
+        - Historical buffer for discriminator training
+        - Checkpoint management for training recovery
+
+    Architecture Overview:
+        - Two Generators: G_AB (A→B) and G_BA (B→A)
+        - Two Discriminators: D_A and D_B
+        - Cycle Consistency: G_BA(G_AB(A)) ≈ A and G_AB(G_BA(B)) ≈ B
+
+    Loss Components:
+        - Adversarial Loss: For realistic image generation
+        - Cycle Consistency Loss: For maintaining domain characteristics
+        - Identity Loss: For color preservation
+
+    Args:
+        device (torch.device): Device to run the model on (CPU or CUDA)
+        checkpoint_path (str, optional): Path to load a previous checkpoint
+
+    Methods:
+        train_step: Performs a single training iteration
+        generate_images: Creates fake images for visualization
+        save_checkpoint: Saves complete model state
+        load_checkpoint: Restores complete model state
+
+    Training Configuration:
+        - Optimizers: Adam with beta1=0.5, beta2=0.999
+        - Learning Rate: 0.0002 with cosine annealing
+        - Loss Weights:
+            * Identity Loss: 5.0
+            * Cycle Loss: 10.0
+            * GAN Loss: 1.0
+    """
 
     def __init__(self, device, checkpoint_path=None):
         self.device = device
@@ -164,7 +251,21 @@ class CycleGAN:
             self.load_checkpoint(checkpoint_path)
 
     def save_checkpoint(self, epoch, losses, checkpoint_name):
-        """Save complete training state to Google Drive."""
+        """
+        Saves complete training state including model, optimizer, and scheduler states.
+
+        Args:
+            epoch (int): Current training epoch
+            losses (dict): Dictionary containing current loss values
+            checkpoint_name (str): Name for the checkpoint file
+
+        Saves:
+            - Model states for all networks
+            - Optimizer states
+            - Scheduler states
+            - AMP scaler state
+            - Training metrics and state
+        """
         checkpoint_path = os.path.join(SAVE_PATH, checkpoint_name)
         checkpoint = {
             "epoch": epoch,
@@ -187,7 +288,22 @@ class CycleGAN:
         print(f"Checkpoint saved to Google Drive: {checkpoint_path}")
 
     def load_checkpoint(self, checkpoint_path):
-        """Load complete training state."""
+        """
+        Loads complete training state from a checkpoint file.
+
+        Args:
+            checkpoint_path (str): Path to the checkpoint file
+
+        Returns:
+            bool: True if checkpoint loaded successfully, False otherwise
+
+        Loads:
+            - Model states
+            - Optimizer states
+            - Scheduler states
+            - AMP scaler state
+            - Training metrics and state
+        """
         if not os.path.exists(checkpoint_path):
             print(f"Checkpoint not found: {checkpoint_path}")
             return False
@@ -231,7 +347,28 @@ class CycleGAN:
             return False
 
     def train_step(self, real_A, real_B):
-        """Perform a single training step."""
+        """
+        Performs a complete training step for both generators and discriminators.
+
+        Training Process:
+            1. Generator forward pass and loss computation
+            2. Generator backward pass with gradient clipping
+            3. Discriminator A training with historical buffer
+            4. Discriminator B training with historical buffer
+
+        Args:
+            real_A (Tensor): Batch of images from domain A
+            real_B (Tensor): Batch of images from domain B
+
+        Returns:
+            model_dict (dict): Dictionary containing all loss components:
+                - loss_G: Total generator loss
+                - loss_D_A: Discriminator A loss
+                - loss_D_B: Discriminator B loss
+                - loss_identity: Identity mapping loss
+                - loss_GAN: Adversarial loss
+                - loss_cycle: Cycle consistency loss
+        """
         # Set models to training mode
         self.G_AB.train()
         self.G_BA.train()
@@ -332,7 +469,7 @@ class CycleGAN:
 
         self.scaler.update()
 
-        return {
+        model_dict = {
             "loss_G": loss_G.item(),
             "loss_D_A": loss_D_A.item(),
             "loss_D_B": loss_D_B.item(),
@@ -340,9 +477,21 @@ class CycleGAN:
             "loss_GAN": (loss_GAN_AB + loss_GAN_BA).item(),
             "loss_cycle": (loss_cycle_A + loss_cycle_B).item(),
         }
+        return model_dict
 
     def generate_images(self, real_A, real_B):
-        """Generate fake images for visualization."""
+        """
+        Generates fake images from both generators for visualization.
+
+        Args:
+            real_A (torch.Tensor): Batch of images from domain A
+            real_B (torch.Tensor): Batch of images from domain B
+
+        Returns:
+            tuple: (fake_A, fake_B) containing:
+                - fake_A (torch.Tensor): Generated images in domain A
+                - fake_B (torch.Tensor): Generated images in domain B
+        """
         self.G_AB.eval()
         self.G_BA.eval()
 

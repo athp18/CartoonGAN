@@ -3,28 +3,48 @@ import numpy as np
 import os
 from torchvision import transforms
 from torch.utils.data import DataLoader
-import itertools
 from tqdm import tqdm
-from models import *
-from optimizations import *
-from images import *
-from utils import *
+from models import CycleGAN, SAVE_PATH
+from images import ImageDataset
+from utils import save_comparison_grid
+import traceback
 
 
 def train(resume_from=None):
-    # Setup device and reproducibility
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    torch.manual_seed(42)
-    np.random.seed(42)
+    """
+    Train a CycleGAN model for unpaired image-to-image translation.
+
+    This function implements the complete training loop for a CycleGAN, including:
+    - Data loading and preprocessing
+    - Model initialization/loading
+    - Training loop with both generator and discriminator updates
+    - Periodic checkpoint saving
+    - Sample image generation
+    - Training metrics tracking
+    - Error handling and recovery
+
+    The training process includes:
+    - Adversarial losses for both domains
+    - Cycle consistency losses
+    - Identity mapping losses
+    - Learning rate scheduling
+    """
+    # set device
     if torch.cuda.is_available():
+        device = torch.device("cuda")
         torch.cuda.manual_seed_all(42)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+    else:
+        device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.manual_seed(42)
+    np.random.seed(42)
 
     # Training hyperparameters
     config = {
         "batch_size": 4,
-        "num_workers": 2,  # Adjusted for Colab
+        "num_workers": 2,  # for colab, we can change accordingly
         "num_epochs": 200,
         "save_frequency": 5,  # Save every N epochs
         "sample_frequency": 500,  # Save samples every N batches
@@ -224,7 +244,7 @@ def train(resume_from=None):
 
 if __name__ == "main":
     # If you want to resume training, set this to your checkpoint filename
-    # Example: resume_from = 'checkpoint_epoch_50.pth'
+    # Example: resume_from = 'best_model.pth'
     # Set to None for fresh training
     resume_from = None
 
@@ -241,6 +261,4 @@ if __name__ == "main":
     except Exception as e:
         print(f"Error during training: {str(e)}")
         # Print the full traceback for debugging
-        import traceback
-
         traceback.print_exc()
