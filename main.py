@@ -6,6 +6,8 @@ from inference import CycleGANInference
 from models import SAVE_PATH
 import torch
 
+os.environ["TORCH_FORCE_WEIGHTS_ONLY_LOAD"] = "1"
+
 
 def main(
     checkpoint_path=None,
