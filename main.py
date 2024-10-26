@@ -2,7 +2,7 @@ import cv2
 from PIL import Image
 import argparse
 import os
-from live_inference import CycleGANInference
+from inference import CycleGANInference
 from models import SAVE_PATH
 import torch
 
