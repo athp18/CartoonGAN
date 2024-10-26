@@ -137,10 +137,10 @@ class CycleGANInference:
         """
         preprocessed = self.preprocess(image)
         with torch.no_grad():
-            if direction == "AtoB":
+            if direction.lower() == "atob":
                 fake_B = self.generator_AB(preprocessed)
                 output_image = self.postprocess(fake_B)
-            elif direction == "BtoA":
+            elif direction.lower() == "btoa":
                 fake_A = self.generator_BA(preprocessed)
                 output_image = self.postprocess(fake_A)
             else:
