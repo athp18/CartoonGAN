@@ -30,11 +30,19 @@ class CycleGANInference:
     """
 
     def __init__(self, checkpoint_path=None, device="cuda", image_size=(256, 256)):
+        self.checkpoint_path = (
+            os.path.join(SAVE_PATH, "best_model.pth")
+            if checkpoint_path is None
+            else checkpoint_path
+        )
+
+        # Validate checkpoint exists
         assert os.path.exists(
-            os.path.abspath(checkpoint_path)
-        ), "The provided checkpoint path does not exist"
+            os.path.abspath(self.checkpoint_path)
+        ), f"Checkpoint not found at: {self.checkpoint_path}"
 
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
+        assert len(image_size) == 2, "image_size must be a tuple of (height, width)"
         self.image_size = image_size
         self.transform = transforms.Compose(
             [
@@ -50,12 +58,12 @@ class CycleGANInference:
                 transforms.ToPILImage(),
             ]
         )
-        self.checkpoint_path = (
-            os.path.join(SAVE_PATH, "best_model.pth")
-            if checkpoint_path is None
-            else checkpoint_path
-        )
-        self.generator_AB, self.generator_BA = self.load_models(checkpoint_path)
+        try:
+            self.generator_AB, self.generator_BA = self.load_models(
+                self.checkpoint_path
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to load models: {str(e)}")
 
     def load_models(self, checkpoint_path):
         """
